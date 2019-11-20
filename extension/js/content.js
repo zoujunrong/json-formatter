@@ -48,8 +48,76 @@
       exitedNotJsonTime,
       displayedFormattedJsonTime
   ;
-  
-  // Open the port "jf" now, ready for when we need it
+  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    console.log('message', request);
+    if ('POPUP INPUT TEXT' == request.type) {
+      if (request.text.length == request.length) {
+        let params = JSON.parse(request.text);
+        // 给添加header
+
+        // for (let k in params) {
+          if (params.hasOwnProperty('get')) {
+            let url = params.hasOwnProperty('url') ? params.url : window.location.href;
+            let separator = url.indexOf('?') !== -1 ? "&" : "?";
+
+            for (let key in params.get) {
+              if (key == 'url') continue;
+              let re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+              let value = params.get[key];
+              if (url.match(re)) {
+                url = url.replace(re, '$1' + key + "=" + value + '$2');
+              } else {
+                url += separator + key + "=" + value;
+              }
+            }
+            console.log(url, 'url')
+            window.location.href = url;
+          } else if (params.hasOwnProperty('post') || params.hasOwnProperty('get')) {
+            let url = params.hasOwnProperty('url') ? params.url : window.location.href;
+            let xhr = new XMLHttpRequest();
+
+            xhr.onreadystatechange = function() {
+                document.querySelector("pre").innerHTML = xhr.responseText;
+                initPort();
+                port.postMessage({
+                  type: "SENDING TEXT",
+                  text: xhr.responseText,
+                  length: xhr.responseText.length
+                });
+            };
+            xhr.open("POST", url, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            if (params.hasOwnProperty('header')) {
+              for (let hk in params.header) {
+                xhr.setRequestHeader(hk, params.header[hk]);
+              }
+            }
+            let dataStr = '';
+            for (let key in params.post) {
+              if (dataStr) dataStr += '&';
+              dataStr += key+'='+params.post[key];
+            }
+            xhr.send(dataStr);
+          } else if (params.hasOwnProperty('json')) {
+            document.querySelector("pre").innerHTML = params.json;
+            initPort();
+            port.postMessage({
+              type: "SENDING TEXT",
+              text: params.json,
+              length: params.json.length
+            });
+          }
+        // }
+      } else {
+        console.log('POPUP INPUT TEXT has lost some information.')
+      }
+
+      sendResponse('has handled the message!');
+    }
+  });
+
+  function initPort() {
+// Open the port "jf" now, ready for when we need it
     // console.time('established port') ;
     port = chrome.extension.connect({name: 'jf'}) ;
     
@@ -206,12 +274,16 @@
           throw new Error('Message not understood: ' + msg[0]) ;
       }
     });
+  }
+  
   
     // console.timeEnd('established port') ;
 
 
   function ready () {
     
+    initPort();
+
     domReadyTime = Date.now() ;
       
     // First, check if it's a PRE and exit if not

@@ -1,13 +1,16 @@
 {
-  "name": "JSON Formatter",
-  "version": "0.6.0",
+  "name": "JSON Formatter for API",
+  "version": "1.0.0",
   "manifest_version": 2,
-  "description": "Makes JSON easy to read. Open source.",
-  "homepage_url": "https://github.com/callumlocke/json-formatter",
+  "description": "Makes API easy to test and makes json esay to read. Open source.",
   "minimum_chrome_version": "21",
   "icons": {
        "128": "icons/128.png",
        "32": "icons/32.png"
+  },
+  "browser_action": {
+    "default_title": "post something",
+    "default_popup": "popup.html"
   },
   "background": {
     "scripts": ["js/background.js"]

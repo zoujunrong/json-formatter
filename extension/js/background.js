@@ -423,53 +423,53 @@
 
               // Not JSON; could be JSONP though.
               // Try stripping 'padding' (if any), and try parsing it again
-                text = text.trim() ;
-                // Find where the first paren is (and exit if none)
-                  var indexOfParen ;
-                  if ( ! (indexOfParen = text.indexOf('(') ) ) {
-                    port.postMessage(['NOT JSON', 'no opening parenthesis']) ;
-                    port.disconnect() ;
-                    return ;
-                  }
+              text = text.trim() ;
+              // Find where the first paren is (and exit if none)
+              var indexOfParen ;
+              if ( ! (indexOfParen = text.indexOf('(') ) ) {
+                port.postMessage(['NOT JSON', 'no opening parenthesis']) ;
+                port.disconnect() ;
+                return ;
+              }
+              
+              // Get the substring up to the first "(", with any comments/whitespace stripped out
+              var firstBit = removeComments( text.substring(0,indexOfParen) ).trim() ;
+              if ( ! firstBit.match(/^[a-zA-Z_$][\.\[\]'"0-9a-zA-Z_$]*$/) ) {
+                // The 'firstBit' is NOT a valid function identifier.
+                port.postMessage(['NOT JSON', 'first bit not a valid function name']) ;
+                port.disconnect() ;
+                return ;
+              }
+              
+              // Find last parenthesis (exit if none)
+              var indexOfLastParen ;
+              if ( ! (indexOfLastParen = text.lastIndexOf(')') ) ) {
+                port.postMessage(['NOT JSON', 'no closing paren']) ;
+                port.disconnect() ;
+                return ;
+              }
+              
+              // Check that what's after the last parenthesis is just whitespace, comments, and possibly a semicolon (exit if anything else)
+              var lastBit = removeComments(text.substring(indexOfLastParen+1)).trim() ;
+              if ( lastBit !== "" && lastBit !== ';' ) {
+                port.postMessage(['NOT JSON', 'last closing paren followed by invalid characters']) ;
+                port.disconnect() ;
+                return ;
+              }
                 
-                // Get the substring up to the first "(", with any comments/whitespace stripped out
-                  var firstBit = removeComments( text.substring(0,indexOfParen) ).trim() ;
-                  if ( ! firstBit.match(/^[a-zA-Z_$][\.\[\]'"0-9a-zA-Z_$]*$/) ) {
-                    // The 'firstBit' is NOT a valid function identifier.
-                    port.postMessage(['NOT JSON', 'first bit not a valid function name']) ;
-                    port.disconnect() ;
-                    return ;
-                  }
-                
-                // Find last parenthesis (exit if none)
-                  var indexOfLastParen ;
-                  if ( ! (indexOfLastParen = text.lastIndexOf(')') ) ) {
-                    port.postMessage(['NOT JSON', 'no closing paren']) ;
-                    port.disconnect() ;
-                    return ;
-                  }
-                
-                // Check that what's after the last parenthesis is just whitespace, comments, and possibly a semicolon (exit if anything else)
-                  var lastBit = removeComments(text.substring(indexOfLastParen+1)).trim() ;
-                  if ( lastBit !== "" && lastBit !== ';' ) {
-                    port.postMessage(['NOT JSON', 'last closing paren followed by invalid characters']) ;
-                    port.disconnect() ;
-                    return ;
-                  }
-                  
-                // So, it looks like a valid JS function call, but we don't know whether it's JSON inside the parentheses...
-                // Check if the 'argument' is actually JSON (and record the parsed result)
-                  text = text.substring(indexOfParen+1, indexOfLastParen) ;
-                  try {
-                    obj = JSON.parse(text) ;
-                    validJsonText = text ;
-                  }
-                  catch (e2) {
-                    // Just some other text that happens to be in a function call.
-                    // Respond as not JSON, and exit
-                      port.postMessage(['NOT JSON', 'looks like a function call, but the parameter is not valid JSON']) ;
-                      return ;
-                  }
+              // So, it looks like a valid JS function call, but we don't know whether it's JSON inside the parentheses...
+              // Check if the 'argument' is actually JSON (and record the parsed result)
+              text = text.substring(indexOfParen+1, indexOfLastParen) ;
+              try {
+                obj = JSON.parse(text) ;
+                validJsonText = text ;
+              }
+              catch (e2) {
+                // Just some other text that happens to be in a function call.
+                // Respond as not JSON, and exit
+                  port.postMessage(['NOT JSON', 'looks like a function call, but the parameter is not valid JSON']) ;
+                  return ;
+              }
                   
               jsonpFunctionName = firstBit ;
             }
@@ -494,6 +494,37 @@
 
             // Disconnect
               port.disconnect() ;
+        } else if (msg.type == 'POPUP INPUT TEXT') {
+          // console.log(msg)
+          function getCurrentTabId(callback) {
+            chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+              if(callback) callback(tabs.length ? tabs[0]: null);
+            });
+          }
+
+          function sendMessageToContentScript(message, callback) {
+            getCurrentTabId((tab) => {
+              if (message.hasOwnProperty('url') && tab.url != message.url) {
+                chrome.tabs.create({url: '/main.html'}, function(tab) {
+                  setTimeout(function() {
+                    chrome.tabs.sendMessage(tab.id, message, function(response) {
+                      if(callback) callback(response);
+                    });
+                  }, 100);
+                  
+                });
+              } else {
+                chrome.tabs.sendMessage(tab.id, message, function(response) {
+                  if(callback) callback(response);
+                });
+              }
+            });
+          }
+
+          sendMessageToContentScript(msg, (response) => {
+            if(response) console.log('replay from content-script：'+response);
+          });
+
         }
       });
     });
